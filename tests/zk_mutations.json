@@ -1,0 +1,419 @@
+{
+  "version": 1,
+  "mutations": [
+    {
+      "id": "M1",
+      "description": "Delete the 64-bit Attribute range constraint",
+      "repo": "kal-zk",
+      "test": "TestZKCIR004AdversarialFamilies",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\t_ = api.ToBinary(c.Attribute, 64)", "after": "\t_ = c.Attribute"}]
+    },
+    {
+      "id": "M2",
+      "description": "Move the Attribute range constraint after the threshold comparison",
+      "repo": "kal-zk",
+      "test": "TestZKCircuitID",
+      "patches": [
+        {"file": "zkauthn/circuits.go", "before": "\t_ = api.ToBinary(c.Attribute, 64)\n\t_ = api.ToBinary(c.Threshold, 64)", "after": "\t_ = api.ToBinary(c.Threshold, 64)"},
+        {"file": "zkauthn/circuits.go", "before": "\tcmp.NewBoundedComparator(api, maxUint64, false).AssertIsLessEq(c.Threshold, c.Attribute)", "after": "\tcmp.NewBoundedComparator(api, maxUint64, false).AssertIsLessEq(c.Threshold, c.Attribute)\n\t_ = api.ToBinary(c.Attribute, 64)"}
+      ]
+    },
+    {
+      "id": "M3",
+      "description": "Narrow the Attribute range constraint to 63 bits",
+      "repo": "kal-zk",
+      "test": "TestZKCIR004AdversarialFamilies",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "api.ToBinary(c.Attribute, 64)", "after": "api.ToBinary(c.Attribute, 63)"}]
+    },
+    {
+      "id": "M4",
+      "description": "Delete the equality between the credential leaf and Path[0]",
+      "repo": "kal-zk",
+      "test": "TestZKDifferential",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\tapi.AssertIsEqual(leaf, c.Path[0])", "after": "\tapi.AssertIsEqual(leaf, leaf)"}]
+    },
+    {
+      "id": "M5",
+      "description": "Delete Merkle path verification",
+      "repo": "kal-zk",
+      "test": "TestZKDifferential",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\tmp.VerifyProof(api, &h, c.Index)", "after": "\t_ = mp"}]
+    },
+    {
+      "id": "M6",
+      "description": "Delete the threshold comparison",
+      "repo": "kal-zk",
+      "test": "TestZKDifferential",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\tcmp.NewBoundedComparator(api, maxUint64, false).AssertIsLessEq(c.Threshold, c.Attribute)", "after": "\t_ = cmp.NewBoundedComparator(api, maxUint64, false)"}]
+    },
+    {
+      "id": "M7",
+      "description": "Flip the comparison to Attribute less-than-or-equal Threshold",
+      "repo": "kal-zk",
+      "test": "TestZKDifferential",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "AssertIsLessEq(c.Threshold, c.Attribute)", "after": "AssertIsLessEq(c.Attribute, c.Threshold)"}]
+    },
+    {
+      "id": "M8",
+      "description": "Delete nullifier equality",
+      "repo": "kal-zk",
+      "test": "TestZKDifferential",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\tapi.AssertIsEqual(h.Sum(), c.Nullifier)", "after": "\tapi.AssertIsEqual(h.Sum(), h.Sum())"}]
+    },
+    {
+      "id": "M9",
+      "description": "Delete Membership challenge binding",
+      "repo": "kal-zk",
+      "test": "TestZKCIR001PublicInputBinding",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\tapi.AssertIsEqual(h.Sum(), c.Nullifier)\n\t_ = api.Mul(c.Challenge, c.Challenge)", "after": "\tapi.AssertIsEqual(h.Sum(), c.Nullifier)\n\t_ = c.Challenge"}]
+    },
+    {
+      "id": "M10",
+      "description": "Delete Knowledge commitment equality",
+      "repo": "kal-zk",
+      "test": "TestZKCIR001PublicInputBinding",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\tapi.AssertIsEqual(h.Sum(), c.Commitment)", "after": "\tapi.AssertIsEqual(h.Sum(), h.Sum())"}]
+    },
+    {
+      "id": "M11",
+      "description": "Delete Knowledge challenge binding",
+      "repo": "kal-zk",
+      "test": "TestZKCIR001PublicInputBinding",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\tapi.AssertIsEqual(h.Sum(), c.Commitment)\n\t_ = api.Mul(c.Challenge, c.Challenge)", "after": "\tapi.AssertIsEqual(h.Sum(), c.Commitment)\n\t_ = c.Challenge"}]
+    },
+    {
+      "id": "M12",
+      "description": "Use the leaf domain for nullifiers",
+      "repo": "kal-zk",
+      "test": "TestZKCIR004AdversarialFamilies",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\th.Write(domainNullifier, c.Secret, c.Audience)", "after": "\th.Write(domainLeaf, c.Secret, c.Audience)"}]
+    },
+    {
+      "id": "M13",
+      "description": "Set the empty leaf to the zero field element",
+      "repo": "kal-zk",
+      "test": "TestDBZKTREE005011012014",
+      "patches": [{"file": "zkauthn/service.go", "before": "\tz.zeros[0] = zero", "after": "\t_ = zero\n\tz.zeros[0] = Field{}"}]
+    },
+    {
+      "id": "M14",
+      "description": "Swap Attribute and Secret in the leaf hash",
+      "repo": "kal-zk",
+      "test": "TestZKDifferential",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\th.Write(domainLeaf, c.Secret, c.Attribute)", "after": "\th.Write(domainLeaf, c.Attribute, c.Secret)"}]
+    },
+    {
+      "id": "M15",
+      "description": "Use Path[0] as the Merkle index",
+      "repo": "kal-zk",
+      "test": "TestZKDifferential",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\tmp.VerifyProof(api, &h, c.Index)", "after": "\tmp.VerifyProof(api, &h, c.Path[0])"}]
+    },
+    {
+      "id": "M16",
+      "description": "Swap two public Membership witness fields",
+      "repo": "kal-zk",
+      "test": "TestZKCIR012PublicWitnessLayout",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\tRoot      frontend.Variable `gnark:\",public\"`\n\tAudience  frontend.Variable `gnark:\",public\"`", "after": "\tAudience  frontend.Variable `gnark:\",public\"`\n\tRoot      frontend.Variable `gnark:\",public\"`"}]
+    },
+    {
+      "id": "M17",
+      "description": "Expose Secret as a public witness",
+      "repo": "kal-zk",
+      "test": "TestZKCIR011WitnessVisibility",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\tSecret    frontend.Variable\n\tAttribute frontend.Variable", "after": "\tSecret    frontend.Variable `gnark:\",public\"`\n\tAttribute frontend.Variable"}]
+    },
+    {
+      "id": "M18",
+      "description": "Change the fixed Merkle depth to 31",
+      "repo": "kal-zk",
+      "test": "TestZKTreeDepthIsCompileTime",
+      "patches": [{"file": "zkauthn/circuits.go", "before": "\tMerkleDepth = 32", "after": "\tMerkleDepth = 31"}]
+    },
+    {
+      "id": "M19",
+      "description": "Expose Threshold on MembershipRequest",
+      "repo": "kal-zk",
+      "test": "TestZKPublicInputSurface",
+      "patches": [{"file": "zkauthn/protocol.go", "before": "\tClaim     string `json:\"claim\"`", "after": "\tClaim     string `json:\"claim\"`\n\tThreshold uint64 `json:\"threshold\"`"}]
+    },
+    {
+      "id": "M20",
+      "description": "Expose Commitment on KnowledgeRequest",
+      "repo": "kal-zk",
+      "test": "TestZKPublicInputSurface",
+      "patches": [{"file": "zkauthn/protocol.go", "before": "\tChallenge string `json:\"challenge\"`\n}\n\n// MembershipRequest", "after": "\tChallenge  string `json:\"challenge\"`\n\tCommitment []byte `json:\"commitment\"`\n}\n\n// MembershipRequest"}]
+    },
+    {
+      "id": "M21",
+      "description": "Expose Audience on MembershipRequest",
+      "repo": "kal-zk",
+      "test": "TestZKPublicInputSurface",
+      "patches": [{"file": "zkauthn/protocol.go", "before": "\tClaim     string `json:\"claim\"`", "after": "\tClaim     string `json:\"claim\"`\n\tAudience  []byte `json:\"audience\"`"}]
+    },
+    {
+      "id": "M22",
+      "description": "Skip validation against auth_zk_roots",
+      "repo": "kal-zk",
+      "test": "TestDBZKTREE008GraceCloses",
+      "patches": [{"file": "zkauthn/tree.go", "before": "\treturn ok, err\n}\n\n// EnsureClaim", "after": "\treturn true, err\n}\n\n// EnsureClaim"}]
+    },
+    {
+      "id": "M23",
+      "description": "Ignore retired_at when validating a root",
+      "repo": "kal-zk",
+      "test": "TestDBZKTREE008GraceCloses",
+      "patches": [{"file": "zkauthn/sql.go", "before": "       and (retired_at is null or (? > 0 and retired_at > now() - make_interval(secs => ?)))", "after": "       and (retired_at is null or ? >= 0 or ? >= 0)"}]
+    },
+    {
+      "id": "M24",
+      "description": "Split the challenge burn into a read without an atomic update",
+      "repo": "kal-zk",
+      "test": "TestDBZKChallengeReplay",
+      "patches": [{"file": "zkauthn/sql.go", "before": "const consumeChallengeSQL = `\nupdate %[1]sauth_zk_challenges\n   set consumed_at = now()\n where challenge = ?\n   and purpose = ?\n   and session_id is not distinct from ?\n   and consumed_at is null\n   and expires_at > now()\nreturning field`", "after": "const consumeChallengeSQL = peekChallengeSQL"}]
+    },
+    {
+      "id": "M25",
+      "description": "Key a session challenge on the user instead of the session",
+      "repo": "kal-zk",
+      "test": "TestDBZKChallengeRandomnessBindingAndRerandomization",
+      "patches": [{"file": "zkauthn/protocol.go", "before": "return z.issueChallenge(ctx, db, challengeKnowledge, p.SessionID)", "after": "return z.issueChallenge(ctx, db, challengeKnowledge, p.UserID)"}]
+    },
+    {
+      "id": "M26",
+      "description": "Drop challenge TTL enforcement from the atomic burn",
+      "repo": "kal-zk",
+      "test": "TestZKRepositorySecurityControls",
+      "patches": [{"file": "zkauthn/sql.go", "before": "   and consumed_at is null\n   and expires_at > now()\nreturning field`", "after": "   and consumed_at is null\nreturning field`"}]
+    },
+    {
+      "id": "M27",
+      "description": "Replace challenge consumption with a replayable proof lookup",
+      "repo": "kal-zk",
+      "test": "TestDBZKChallengeRandomnessBindingAndRerandomization",
+      "patches": [{"file": "zkauthn/protocol.go", "before": "\t\tif _, err := z.consumeChallenge(ctx, tx, req.Challenge, challengeLogin, \"\"); err != nil {", "after": "\t\tif _, err := z.peekChallenge(ctx, tx, req.Challenge, challengeLogin, \"\"); err != nil {"}]
+    },
+    {
+      "id": "M28",
+      "description": "Return a distinguishable code for invalid proofs",
+      "repo": "kal-zk",
+      "test": "TestDBZKORCUniformFailures",
+      "patches": [{"file": "zkauthn/service.go", "before": "Code: kalerr.CodeInvalidProof, Message: \"invalid zero-knowledge proof\"", "after": "Code: kalerr.CodeInvalidInput, Message: \"invalid zero-knowledge proof\""}]
+    },
+    {
+      "id": "M29",
+      "description": "Remove the dummy verification for unknown claims",
+      "repo": "kal-zk",
+      "test": "TestDBZKAuditORCTiming",
+      "tags": "zkaudit",
+      "patches": [{"file": "zkauthn/protocol.go", "before": "\t} else if commitment, err = parseField(raw); err != nil {\n\t\treturn err\n\t}\n\n\tpublic := &KnowledgeCircuit", "after": "\t} else if commitment, err = parseField(raw); err != nil {\n\t\treturn err\n\t}\n\tif !enrolled {\n\t\treturn invalidProof(errors.New(\"knowledge commitment not enrolled\"))\n\t}\n\n\tpublic := &KnowledgeCircuit"}]
+    },
+    {
+      "id": "M30",
+      "description": "Move dummy verification outside the semaphore",
+      "repo": "kal-zk",
+      "test": "TestDBZKAuditVerificationBound",
+      "tags": "zkaudit",
+      "patches": [{"file": "zkauthn/service.go", "before": "\treturn z.verify(ctx, z.membership, proof, &MembershipCircuit{", "after": "\treturn z.membership.verify(proof, &MembershipCircuit{"}]
+    },
+    {
+      "id": "M31",
+      "description": "Remove the verification semaphore",
+      "repo": "kal-zk",
+      "test": "TestDBZKAuditVerificationBound",
+      "tags": "zkaudit",
+      "patches": [{"file": "zkauthn/service.go", "before": "\tif err := z.acquire(ctx); err != nil {\n\t\treturn err\n\t}\n\tdefer z.sem.Release(1)\n\treturn vk.verify(proof, public)", "after": "\treturn vk.verify(proof, public)"}]
+    },
+    {
+      "id": "M32",
+      "description": "Change exact proof framing equality to a less-than-or-equal check",
+      "repo": "kal-zk",
+      "test": "TestZKDOS003ProofFraming",
+      "patches": [{"file": "zkauthn/proof.go", "before": "if len(raw) != CompressedProofSize {", "after": "if len(raw) > CompressedProofSize {"}]
+    },
+    {
+      "id": "M33",
+      "description": "Use UnsafeReadFrom for group-element deserialization",
+      "repo": "kal-zk",
+      "test": "TestZKKEY005SafeDeserialization",
+      "patches": [{"file": "zkauthn/keys.go", "before": "vk.ReadFrom(bytes.NewReader(raw))", "after": "vk.UnsafeReadFrom(bytes.NewReader(raw))"}]
+    },
+    {
+      "id": "M34",
+      "description": "Remove the verifying-key hash comparison",
+      "repo": "kal-zk",
+      "test": "TestZKProofRoundTrip",
+      "patches": [{"file": "zkauthn/keys.go", "before": "if !bytes.Equal(got[:], wantSHA256) {", "after": "if false && !bytes.Equal(got[:], wantSHA256) {"}]
+    },
+    {
+      "id": "M35",
+      "description": "Parse the verifying key before checking its hash",
+      "repo": "kal-zk",
+      "test": "TestZKKEY005SafeDeserialization",
+      "patches": [{"file": "zkauthn/keys.go", "before": "\tgot := sha256.Sum256(raw)\n\tif !bytes.Equal(got[:], wantSHA256) {\n\t\treturn nil, fmt.Errorf(\"zkauthn: %s verifying key SHA-256 mismatch\", kind)\n\t}\n\tvk := groth16.NewVerifyingKey(ecc.BN254)\n\tif _, err := vk.ReadFrom(bytes.NewReader(raw)); err != nil {\n\t\treturn nil, fmt.Errorf(\"zkauthn: parse %s verifying key: %w\", kind, err)\n\t}", "after": "\tvk := groth16.NewVerifyingKey(ecc.BN254)\n\tif _, err := vk.ReadFrom(bytes.NewReader(raw)); err != nil {\n\t\treturn nil, fmt.Errorf(\"zkauthn: parse %s verifying key: %w\", kind, err)\n\t}\n\tgot := sha256.Sum256(raw)\n\tif !bytes.Equal(got[:], wantSHA256) {\n\t\treturn nil, fmt.Errorf(\"zkauthn: %s verifying key SHA-256 mismatch\", kind)\n\t}"}]
+    },
+    {
+      "id": "M36",
+      "description": "Make Setup deterministic by reusing its first ceremony output",
+      "repo": "kal-zk",
+      "test": "TestZKKEY007IndependentCeremonies",
+      "patches": [
+        {"file": "zkauthn/keys.go", "before": "\t\"io\"", "after": "\t\"io\"\n\t\"sync\""},
+        {"file": "zkauthn/keys.go", "before": "// Setup @notice Runs the operator ceremony", "after": "var setupMutationCache = struct {\n\tsync.Mutex\n\tpk, vk map[Circuit][]byte\n}{pk: map[Circuit][]byte{}, vk: map[Circuit][]byte{}}\n\n// Setup @notice Runs the operator ceremony"},
+        {"file": "zkauthn/keys.go", "before": "\tpk, vk, err := groth16.Setup(ccs)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"zkauthn: setup %s: %w\", kind, err)\n\t}\n\tif _, err := pk.WriteTo(pkw); err != nil {\n\t\treturn fmt.Errorf(\"zkauthn: write %s proving key: %w\", kind, err)\n\t}\n\tif _, err := vk.WriteTo(vkw); err != nil {\n\t\treturn fmt.Errorf(\"zkauthn: write %s verifying key: %w\", kind, err)\n\t}\n\treturn nil", "after": "\tsetupMutationCache.Lock()\n\tdefer setupMutationCache.Unlock()\n\tif cached := setupMutationCache.pk[kind]; cached != nil {\n\t\t_, err := pkw.Write(cached)\n\t\tif err == nil { _, err = vkw.Write(setupMutationCache.vk[kind]) }\n\t\treturn err\n\t}\n\tpk, vk, err := groth16.Setup(ccs)\n\tif err != nil { return err }\n\tvar pkRaw, vkRaw bytes.Buffer\n\tif _, err = pk.WriteTo(&pkRaw); err != nil { return err }\n\tif _, err = vk.WriteTo(&vkRaw); err != nil { return err }\n\tsetupMutationCache.pk[kind], setupMutationCache.vk[kind] = pkRaw.Bytes(), vkRaw.Bytes()\n\tif _, err = pkw.Write(pkRaw.Bytes()); err == nil { _, err = vkw.Write(vkRaw.Bytes()) }\n\treturn err"}
+      ]
+    },
+    {
+      "id": "M37",
+      "description": "Move the advisory lock until after the next-leaf read",
+      "repo": "kal-zk",
+      "test": "TestDBZKTREE002003LockDiscipline",
+      "patches": [
+        {"file": "zkauthn/tree.go", "before": "\terr = withTx(ctx, db, func(tx orm.DB) error {\n\t\tif _, err := tx.ExecContext(ctx, z.sql.lockTree, z.schema); err != nil {\n\t\t\treturn err\n\t\t}\n\t\tvar next uint64", "after": "\terr = withTx(ctx, db, func(tx orm.DB) error {\n\t\tvar next uint64"},
+        {"file": "zkauthn/tree.go", "before": "\t\tindex := uint32(next) // #nosec G115 -- bounded to MaxUint32 immediately above\n\t\tif _, err := tx.ExecContext(ctx, z.sql.insertCredential", "after": "\t\tindex := uint32(next) // #nosec G115 -- bounded to MaxUint32 immediately above\n\t\tif _, err := tx.ExecContext(ctx, z.sql.lockTree, z.schema); err != nil { return err }\n\t\tif _, err := tx.ExecContext(ctx, z.sql.insertCredential"}
+      ]
+    },
+    {
+      "id": "M38",
+      "description": "Remove the advisory lock from issuance",
+      "repo": "kal-zk",
+      "test": "TestDBZKConcurrentEnroll",
+      "patches": [{"file": "zkauthn/tree.go", "before": "\terr = withTx(ctx, db, func(tx orm.DB) error {\n\t\tif _, err := tx.ExecContext(ctx, z.sql.lockTree, z.schema); err != nil {\n\t\t\treturn err\n\t\t}\n\t\tvar next uint64", "after": "\terr = withTx(ctx, db, func(tx orm.DB) error {\n\t\tvar next uint64"}]
+    },
+    {
+      "id": "M39",
+      "description": "Return an in-memory cached Merkle path instead of database state",
+      "repo": "kal-zk",
+      "test": "TestDBZKE2E005TwoReplicasAgree",
+      "patches": [{"file": "zkauthn/tree.go", "before": "func (z *ZK) Path(ctx context.Context, db orm.DB, index uint32) (*MerklePath, error) {\n\tvar out MerklePath", "after": "func (z *ZK) Path(ctx context.Context, db orm.DB, index uint32) (*MerklePath, error) {\n\tif index > 0 { return &MerklePath{Index: index}, nil }\n\tvar out MerklePath"}]
+    },
+    {
+      "id": "M40",
+      "description": "Write the revoked leaf outside the revocation transaction",
+      "repo": "kal-zk",
+      "test": "TestDBZKTREE005011012014",
+      "patches": [
+        {"file": "zkauthn/tree.go", "before": "func (z *ZK) RevokeCredential(ctx context.Context, db orm.DB, index uint32) error {\n\treturn withTx", "after": "func (z *ZK) RevokeCredential(ctx context.Context, db orm.DB, index uint32) error {\n\tvar premarked []byte\n\tif _, err := db.QueryOneContext(ctx, pg.Scan(&premarked), z.sql.markRevoked, uint64(index)); err != nil { return err }\n\treturn withTx"},
+        {"file": "zkauthn/tree.go", "before": "\t\tvar ignored []byte\n\t\tif _, err := tx.QueryOneContext(ctx, pg.Scan(&ignored), z.sql.markRevoked, uint64(index)); err != nil {\n\t\t\tif errors.Is(err, pg.ErrNoRows) {\n\t\t\t\treturn nil\n\t\t\t}\n\t\t\treturn err\n\t\t}\n\t\t_, err := z.writeLeaf(ctx, tx, index, Field{}, true)", "after": "\t\t_, err := z.writeLeaf(ctx, tx, index, Field{}, true)"}
+      ]
+    },
+    {
+      "id": "M41",
+      "description": "Default RootGrace to every published root",
+      "repo": "kal-zk",
+      "test": "TestDBZKTREE008GraceCloses",
+      "patches": [{"file": "zkauthn/tree.go", "before": "\tseconds := z.rootGrace.Seconds()", "after": "\tseconds := 1e18"}]
+    },
+    {
+      "id": "M42",
+      "description": "Burn a recurring nullifier as one-shot",
+      "repo": "kal-zk",
+      "test": "TestDBZKNullifierSingleUse",
+      "patches": [{"file": "zkauthn/protocol.go", "before": "\t\tcase ClaimRecurring:\n\t\t\tvar userID string\n\t\t\tif _, err := tx.QueryOneContext(ctx, pg.Scan(&userID), z.sql.bindRecurringNullifier,\n\t\t\t\tnullifier[:], claim.Audience[:], p.UserID); err != nil {\n\t\t\t\treturn noRowsInvalid(err)\n\t\t\t}\n\t\t\tif _, err := tx.ExecContext(ctx, z.sql.storeSessionClaim, p.SessionID, claim.Name); err != nil {\n\t\t\t\treturn err\n\t\t\t}", "after": "\t\tcase ClaimRecurring:\n\t\t\tvar stored []byte\n\t\t\tif _, err := tx.QueryOneContext(ctx, pg.Scan(&stored), z.sql.oneShotNullifier, nullifier[:], claim.Audience[:]); err != nil {\n\t\t\t\treturn noRowsInvalid(err)\n\t\t\t}\n\t\t\tif _, err := tx.ExecContext(ctx, z.sql.storeSessionClaim, p.SessionID, claim.Name); err != nil { return err }"}]
+    },
+    {
+      "id": "M43",
+      "description": "Skip the one-shot nullifier burn",
+      "repo": "kal-zk",
+      "test": "TestDBZKNullifierSingleUse",
+      "patches": [{"file": "zkauthn/protocol.go", "before": "\t\tcase ClaimOneShot:\n\t\t\tvar stored []byte\n\t\t\tif _, err := tx.QueryOneContext(ctx, pg.Scan(&stored), z.sql.oneShotNullifier,\n\t\t\t\tnullifier[:], claim.Audience[:]); err != nil {\n\t\t\t\treturn noRowsInvalid(err)\n\t\t\t}", "after": "\t\tcase ClaimOneShot:\n\t\t\t_ = nullifier"}]
+    },
+    {
+      "id": "M44",
+      "description": "Turn one-shot insert conflict into a successful read-then-write equivalent",
+      "repo": "kal-zk",
+      "test": "TestDBZKNullifierSingleUse",
+      "patches": [{"file": "zkauthn/sql.go", "before": "on conflict (nullifier) do nothing\nreturning nullifier`", "after": "on conflict (nullifier) do update set audience = excluded.audience\nreturning nullifier`"}]
+    },
+    {
+      "id": "M45",
+      "description": "Key nullifiers on the pair (nullifier, audience)",
+      "repo": "kal",
+      "test": "TestDBZKNullifierSchemaShape",
+      "patches": [{"file": "migrations/0002_zk.sql", "before": "    nullifier   bytea       primary key check (octet_length(nullifier) = 32),\n    audience    bytea       not null check (octet_length(audience) = 32),", "after": "    nullifier   bytea       not null check (octet_length(nullifier) = 32),\n    audience    bytea       not null check (octet_length(audience) = 32),"}, {"file": "migrations/0002_zk.sql", "before": "    first_seen_at timestamptz not null default now(),\n    consumed_at timestamptz\n);", "after": "    first_seen_at timestamptz not null default now(),\n    consumed_at timestamptz,\n    primary key (nullifier, audience)\n);"}]
+    },
+    {
+      "id": "M46",
+      "description": "Populate metadata on a pseudonymous session",
+      "repo": "kal-zk",
+      "test": "TestDBZKLogin",
+      "patches": [{"file": "zkauthn/protocol.go", "before": "z.sessions.Issue(ctx, tx, userID, session.Meta{})", "after": "z.sessions.Issue(ctx, tx, userID, session.Meta{UserAgent: \"zk-login\"})"}]
+    },
+    {
+      "id": "M47",
+      "description": "Restore Scope fallthrough for an empty UserID",
+      "repo": "kal",
+      "test": "TestDBZKAUZ001ScopeEmptyUser",
+      "patches": [{"file": "authz/scope.go", "before": "if !ok || p.UserID == \"\" {", "after": "if !ok {"}]
+    },
+    {
+      "id": "M48",
+      "description": "Make a nil Proofs callback allow",
+      "repo": "kal",
+      "test": "TestAuthDirectiveProofs",
+      "patches": [{"file": "authz/directive.go", "before": "\t\t\tif opts.Proofs == nil {\n\t\t\t\treturn nil, &kalerr.Error{Code: kalerr.CodeInvalidProof,\n\t\t\t\t\tMessage: \"zero-knowledge proof required\"}\n\t\t\t}", "after": "\t\t\tif opts.Proofs == nil { return next(ctx) }"}]
+    },
+    {
+      "id": "M49",
+      "description": "Move proves before mfa in DirectiveSDL",
+      "repo": "kal",
+      "test": "TestAuthDirectiveProofs",
+      "patches": [{"file": "authz/directive.go", "before": "  mfa:      Boolean\n  proves:   [String!]", "after": "  proves:   [String!]\n  mfa:      Boolean"}]
+    },
+    {
+      "id": "M50",
+      "description": "Reload the claim set inside every Proofs directive call",
+      "repo": "kal-zk",
+      "test": "TestDBZKAUZ005ClaimsLoadOnce",
+      "patches": [
+        {"file": "zkauthz/zkauthz.go", "before": "\tloadErr   error\n}", "after": "\tloadErr   error\n\tdb        orm.DB\n\tsessionID string\n}"},
+        {"file": "zkauthz/zkauthz.go", "before": "\t\t\tif p, ok := authz.From(r.Context()); ok {\n\t\t\t\tvar names []string", "after": "\t\t\tif p, ok := authz.From(r.Context()); ok {\n\t\t\t\th.db, h.sessionID = db, p.SessionID\n\t\t\t\tvar names []string"},
+        {"file": "zkauthz/zkauthz.go", "before": "\tif h.loadErr != nil {\n\t\treturn h.loadErr\n\t}", "after": "\tif h.db != nil {\n\t\tvar names []string\n\t\t_, h.loadErr = h.db.QueryOneContext(ctx, pg.Scan(pg.Array(&names)), c.sql.forSession, h.sessionID)\n\t\th.recurring = map[string]bool{}\n\t\tfor _, name := range names { h.recurring[name] = true }\n\t}\n\tif h.loadErr != nil { return h.loadErr }"}
+      ]
+    },
+    {
+      "id": "M51",
+      "description": "Treat an unknown claim as unconstrained",
+      "repo": "kal-zk",
+      "test": "TestZKAUZ004CoverageAndUnknownClaim",
+      "patches": [{"file": "zkauthz/zkauthz.go", "before": "\t\tif h.oneShot[claim] < count {\n\t\t\treturn invalidProof()\n\t\t}", "after": "\t\tif h.oneShot[claim] < count {\n\t\t\tcontinue\n\t\t}"}]
+    },
+    {
+      "id": "M52",
+      "description": "Cache the request claim holder at package scope",
+      "repo": "kal-zk",
+      "test": "TestZKRequestClaimsPerRequest",
+      "patches": [
+        {"file": "zkauthz/zkauthz.go", "before": "// Middleware @notice Loads recurring claims", "after": "var sharedMutationHolder = &holder{recurring: map[string]bool{}, oneShot: map[string]int{}}\n\n// Middleware @notice Loads recurring claims"},
+        {"file": "zkauthz/zkauthz.go", "before": "\t\t\th := &holder{recurring: map[string]bool{}, oneShot: map[string]int{}}", "after": "\t\t\th := sharedMutationHolder"}
+      ]
+    },
+    {
+      "id": "M53",
+      "description": "Add a caller-supplied user id to knowledge enrolment",
+      "repo": "kal-zk",
+      "test": "TestZKPublicInputSurface",
+      "patches": [
+        {"file": "zkauthn/protocol.go", "before": "func (z *ZK) EnrollKnowledge(ctx context.Context, db orm.DB, currentPassword string) (Secret, error) {", "after": "func (z *ZK) EnrollKnowledge(ctx context.Context, db orm.DB, currentPassword string, requestedUserID ...string) (Secret, error) {"},
+        {"file": "zkauthn/protocol.go", "before": "\tp, err := authz.Require(ctx)\n\tif err != nil {\n\t\treturn Secret{}, err\n\t}\n\n\tvar existing []byte", "after": "\tp, err := authz.Require(ctx)\n\tif err != nil { return Secret{}, err }\n\ttargetUserID := p.UserID\n\tif len(requestedUserID) != 0 { targetUserID = requestedUserID[0] }\n\n\tvar existing []byte"},
+        {"file": "zkauthn/protocol.go", "before": "_, err = db.QueryOneContext(ctx, pg.Scan(&existing), z.sql.commitmentByUser, p.UserID)", "after": "_, err = db.QueryOneContext(ctx, pg.Scan(&existing), z.sql.commitmentByUser, targetUserID)"},
+        {"file": "zkauthn/protocol.go", "before": "z.sql.upsertCommitment, p.UserID, commitment[:]", "after": "z.sql.upsertCommitment, targetUserID, commitment[:]"},
+        {"file": "zkauthn/protocol.go", "before": "z.sessions.RevokeAllForUser(ctx, tx, p.UserID)", "after": "z.sessions.RevokeAllForUser(ctx, tx, targetUserID)"}
+      ]
+    },
+    {
+      "id": "M54",
+      "description": "Give auth_zk_commitments a surrogate primary key",
+      "repo": "kal",
+      "test": "TestDBZKSchemaContract",
+      "patches": [{"file": "migrations/0002_zk.sql", "before": "create table auth_zk_commitments (\n    user_id     uuid        primary key references auth_users(id) on delete cascade,", "after": "create table auth_zk_commitments (\n    id          bigserial   primary key,\n    user_id     uuid        not null unique references auth_users(id) on delete cascade,"}]
+    },
+    {
+      "id": "M55",
+      "description": "Cascade user deletion into issued membership credentials",
+      "repo": "kal",
+      "test": "TestDBZKSQL006Cascades",
+      "patches": [{"file": "migrations/0002_zk.sql", "before": "references auth_users(id) on delete set null", "after": "references auth_users(id) on delete cascade"}]
+    }
+  ]
+}

@@ -1,0 +1,252 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # release.yml calls this instead of restating the matrix, so a tag is gated by the same three
+  # jobs a pull request is. A release workflow with its own weaker test step is how a tag ends
+  # up published from a tree that never ran the DB-backed tests.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.25', '1.26']
+        postgres: ['14', '18']
+
+    # The TestDB* tests skip silently without DATABASE_URL, and a skipped test still reads as
+    # "ok". In an auth library that silence would cover session revocation, token single-use and
+    # the unique index — this service container is what keeps those tests from rotting into a
+    # permanent skip that nobody notices.
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go }}
+          check-latest: true
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needed on:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: create non-superuser database owner
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          create role kal_ci login password 'kal_ci' nosuperuser nocreatedb nocreaterole;
+          create database kal_ci owner kal_ci;
+          SQL
+
+      # sslmode=disable because the service container speaks plain TCP. The database owner is
+      # deliberately not a superuser: migration compatibility includes managed-Postgres privilege
+      # constraints, not just SQL syntax.
+      - name: go test and exact DB-test reconciliation
+        # Discovers every TestDBZK* top-level test, then requires one pass and zero skips per name.
+        run: make test-db
+        env:
+          DATABASE_URL: postgres://kal_ci:kal_ci@localhost:5432/kal_ci?sslmode=disable
+
+      - name: emit R1CS fingerprint evidence
+        run: |
+          go test -run '^TestZKR1CSFingerprintProcess$' -v ./tests \
+            | tee fingerprint.txt
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: fingerprint-go${{ matrix.go }}-pg${{ matrix.postgres }}
+          path: fingerprint.txt
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25'
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+
+  audit:
+    name: audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.26'
+          # check-latest matters here specifically: govulncheck reports standard-library
+          # vulnerabilities against the toolchain that built the code, so a stale minor
+          # version fails this job for reasons that have nothing to do with kal — and the
+          # honest fix is the patched toolchain, not a suppression.
+          check-latest: true
+
+      # Pinned to @latest deliberately: a vulnerability scanner frozen at an old version stops
+      # knowing about new vulnerabilities, which defeats the reason it is here.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+      - name: gosec
+        run: go run github.com/securego/gosec/v2/cmd/gosec@latest -quiet ./...
+
+  zk-audit:
+    name: zkaudit (postgres 18)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.26'
+          check-latest: true
+      - name: create non-superuser database owner
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          create role kal_ci login password 'kal_ci' nosuperuser nocreatedb nocreaterole;
+          create database kal_ci owner kal_ci;
+          SQL
+      - name: audit-only tests
+        run: make test-audit
+        env:
+          DATABASE_URL: postgres://kal_ci:kal_ci@localhost:5432/kal_ci?sslmode=disable
+
+  mutation:
+    name: 55-mutant release matrix
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # Seven mutants deliberately change kal's migrations or authz seams. Pinning this checkout
+      # makes the cross-repository half of the matrix as reproducible as the kal-zk half.
+      - uses: actions/checkout@v7
+        with:
+          repository: ulas96/kal
+          ref: v0.5.1
+          path: kal-source
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.26'
+          check-latest: true
+      - name: create non-superuser database owner
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          create role kal_ci login password 'kal_ci' nosuperuser nocreatedb nocreaterole;
+          create database kal_ci owner kal_ci;
+          SQL
+      - name: require every named control to kill its exact mutant
+        run: |
+          set -o pipefail
+          make mutation-zk KAL_REPO=kal-source | tee mutation-results.jsonl
+        env:
+          DATABASE_URL: postgres://kal_ci:kal_ci@localhost:5432/kal_ci?sslmode=disable
+      - uses: actions/upload-artifact@v6
+        with:
+          name: mutation-evidence
+          path: |
+            tests/zk_mutations.json
+            mutation-results.jsonl
+
+  benchmark:
+    name: pinned circuit benchmark evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.26'
+          check-latest: true
+      - name: measure one prove and verify per circuit
+        run: |
+          set -o pipefail
+          make bench-zk | tee benchmark.txt
+      - uses: actions/upload-artifact@v6
+        with:
+          name: benchmark-evidence
+          path: benchmark.txt
+
+  fingerprints:
+    name: compare R1CS fingerprints
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: fingerprint-*
+          path: fingerprints
+          merge-multiple: true
+      - name: require one identity per circuit across toolchains
+        run: |
+          knowledge=$(grep -h 'FINGERPRINT knowledge-v1' fingerprints/* | grep -Eo '[0-9a-f]{64}' | sort -u)
+          membership=$(grep -h 'FINGERPRINT membership-v1' fingerprints/* | grep -Eo '[0-9a-f]{64}' | sort -u)
+          test "$(printf '%s\n' "$knowledge" | sed '/^$/d' | wc -l)" -eq 1
+          test "$(printf '%s\n' "$membership" | sed '/^$/d' | wc -l)" -eq 1
