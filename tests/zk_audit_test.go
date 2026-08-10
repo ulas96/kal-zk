@@ -200,6 +200,13 @@ func medianDuration(values []time.Duration) time.Duration {
 	return copyOfValues[len(copyOfValues)/2]
 }
 
+// medianFloat sorts a copy so the caller's round order survives for the failure message.
+func medianFloat(values []float64) float64 {
+	copyOfValues := append([]float64(nil), values...)
+	sort.Float64s(copyOfValues)
+	return copyOfValues[len(copyOfValues)/2]
+}
+
 func cliffsDelta(a, b []time.Duration) float64 {
 	var greater, less int64
 	for _, x := range a {
@@ -254,21 +261,40 @@ func TestDBZKAuditORCTiming(t *testing.T) {
 		_ = measure(enrolledCtx, enrolledChallenge)
 		_ = measure(missingCtx, missingChallenge)
 	}
-	a, b := make([]time.Duration, 0, 1000), make([]time.Duration, 0, 1000)
-	random := rand.New(rand.NewSource(defaultZKSeed)) // #nosec G404 -- randomized order, fixed audit seed
-	for len(a) < 1000 || len(b) < 1000 {
-		if (random.Intn(2) == 0 && len(a) < 1000) || len(b) == 1000 {
-			a = append(a, measure(enrolledCtx, enrolledChallenge))
-		} else {
-			b = append(b, measure(missingCtx, missingChallenge))
+	// One round is 1000 interleaved measurements per class. Rounds are repeated and the assertion
+	// is on the median, because a single round cannot separate a timing oracle from the host
+	// drifting underneath it. Cliff's delta over 1000 samples has a standard error near 0.026 when
+	// the samples are independent, so the 0.147 bound is roughly 5.7 of those out and unreachable
+	// by chance — but timing samples are autocorrelated, and a runner that slows partway through
+	// biases whichever class the interleaving happened to place late. That is how CI once measured
+	// 0.150 on a tree where this leg had already passed at the same commit.
+	//
+	// The median of the *signed* deltas is what distinguishes the two: a real oracle keeps its sign
+	// every round, because one branch genuinely does less work, while drift changes sign freely.
+	// Taking the median of absolute values instead would preserve exactly the noise this removes.
+	// Each round reseeds so the rounds do not share one interleaving pattern; the audit stays
+	// reproducible because the seeds derive from defaultZKSeed.
+	const rounds = 3
+	deltas := make([]float64, 0, rounds)
+	ratios := make([]float64, 0, rounds)
+	for round := 0; round < rounds; round++ {
+		a, b := make([]time.Duration, 0, 1000), make([]time.Duration, 0, 1000)
+		random := rand.New(rand.NewSource(defaultZKSeed + int64(round))) // #nosec G404 -- randomized order, fixed audit seed
+		for len(a) < 1000 || len(b) < 1000 {
+			if (random.Intn(2) == 0 && len(a) < 1000) || len(b) == 1000 {
+				a = append(a, measure(enrolledCtx, enrolledChallenge))
+			} else {
+				b = append(b, measure(missingCtx, missingChallenge))
+			}
 		}
+		ratios = append(ratios, float64(medianDuration(a))/float64(medianDuration(b)))
+		deltas = append(deltas, cliffsDelta(a, b))
 	}
-	ratio := float64(medianDuration(a)) / float64(medianDuration(b))
-	delta := cliffsDelta(a, b)
+	ratio, delta := medianFloat(ratios), medianFloat(deltas)
 	if ratio < 0.80 || ratio > 1.25 {
-		t.Errorf("median timing ratio enrolled/missing = %.3f, want 0.80..1.25", ratio)
+		t.Errorf("median timing ratio enrolled/missing = %.3f, want 0.80..1.25 (rounds %v)", ratio, ratios)
 	}
 	if delta < -0.147 || delta > 0.147 {
-		t.Errorf("absolute Cliff's delta = %.3f, want <= 0.147", delta)
+		t.Errorf("absolute Cliff's delta = %.3f, want <= 0.147 (rounds %v)", delta, deltas)
 	}
 }
