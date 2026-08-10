@@ -286,11 +286,20 @@ func runNamedTest(root, workspace string, mutant mutation, timeout time.Duration
 	args = append(args, "-json", "-count=1", "-run", "^"+mutant.Test+"$", "./tests")
 	env := append(os.Environ(), "GOWORK="+workspace)
 	output, runErr = goCommand(root, timeout, env, args...)
-	decoder := json.NewDecoder(bytes.NewReader(output))
-	for {
+	// Parse line by line and skip anything that is not a JSON object. `go test -json` interleaves
+	// plain text into the same stream — "go: downloading <module>" on a cold module cache is the
+	// one that matters. A streaming decoder stops at the first such byte, parses zero events, and
+	// reports the unmutated baseline as not having passed, which the runner scores as a survivor:
+	// a green suite fails the whole matrix on the first mutant and only ever on a cold cache, so it
+	// reproduces in CI and never on a developer machine.
+	for _, line := range bytes.Split(output, []byte("\n")) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 || line[0] != '{' {
+			continue
+		}
 		var event testEvent
-		if err := decoder.Decode(&event); err != nil {
-			break
+		if err := json.Unmarshal(line, &event); err != nil {
+			continue
 		}
 		if event.Action == "pass" && event.Test == mutant.Test {
 			passed = true

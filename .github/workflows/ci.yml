@@ -83,9 +83,13 @@ jobs:
         env:
           DATABASE_URL: postgres://kal_ci:kal_ci@localhost:5432/kal_ci?sslmode=disable
 
+      # The helper env var is what makes the test print the identities. Without it the test spawns
+      # its own subprocess, captures that output with CombinedOutput and discards it on success —
+      # so the file lands with no FINGERPRINT line in it and the comparison job below greps nothing.
       - name: emit R1CS fingerprint evidence
         run: |
-          go test -run '^TestZKR1CSFingerprintProcess$' -v ./tests \
+          KAL_ZK_FINGERPRINT_HELPER=1 \
+            go test -run '^TestZKR1CSFingerprintProcess$' -v ./tests \
             | tee fingerprint.txt
 
       - uses: actions/upload-artifact@v6
@@ -239,14 +243,18 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
+      # No merge-multiple: every leg uploads a file called fingerprint.txt, so merging them into one
+      # directory leaves whichever downloaded last and the job compares a single toolchain against
+      # itself. One artifact per directory is what makes this a comparison rather than a tautology.
       - uses: actions/download-artifact@v7
         with:
           pattern: fingerprint-*
           path: fingerprints
-          merge-multiple: true
       - name: require one identity per circuit across toolchains
         run: |
-          knowledge=$(grep -h 'FINGERPRINT knowledge-v1' fingerprints/* | grep -Eo '[0-9a-f]{64}' | sort -u)
-          membership=$(grep -h 'FINGERPRINT membership-v1' fingerprints/* | grep -Eo '[0-9a-f]{64}' | sort -u)
+          legs=$(find fingerprints -name fingerprint.txt | wc -l)
+          test "$legs" -ge 2 || { echo "only $legs fingerprint leg(s); nothing to compare"; exit 1; }
+          knowledge=$(grep -rh 'FINGERPRINT knowledge-v1' fingerprints | grep -Eo '[0-9a-f]{64}' | sort -u)
+          membership=$(grep -rh 'FINGERPRINT membership-v1' fingerprints | grep -Eo '[0-9a-f]{64}' | sort -u)
           test "$(printf '%s\n' "$knowledge" | sed '/^$/d' | wc -l)" -eq 1
           test "$(printf '%s\n' "$membership" | sed '/^$/d' | wc -l)" -eq 1
